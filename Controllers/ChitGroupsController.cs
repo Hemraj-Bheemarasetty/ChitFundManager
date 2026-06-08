@@ -157,6 +157,7 @@ namespace ChitFundManager.Controllers
                     .Where(cm => cm.ChitGroupId == chitGroupId)
                     .Select(cm => new CreateMemberDto
                     {
+                        MemberId = cm.MemberId,
                         Name = cm.Member.Name,
                         PhoneNumber = cm.Member.PhoneNumber,
                         Address = cm.Member.Address
