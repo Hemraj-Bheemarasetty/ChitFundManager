@@ -20,7 +20,7 @@ namespace ChitFundManager.Controllers
 
 
         [HttpPost("AddMember")]
-        public async Task<IActionResult> createMember(CreateMemberDto dto)
+        public async Task<IActionResult> createMember(NewMemberDto dto)
         {
             var model=_mapper.Map<Member>(dto);
             model.Id=Guid.NewGuid();
