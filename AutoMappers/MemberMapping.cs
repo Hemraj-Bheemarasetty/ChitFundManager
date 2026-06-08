@@ -8,6 +8,7 @@ namespace ChitFundManager.AutoMappers
         {
             CreateMap<Member,CreateMemberDto>();
             CreateMap<CreateMemberDto,Member>();
+            CreateMap<NewMemberDto,Member>();
         }
     }
 }
