@@ -170,6 +170,69 @@ namespace ChitFundManager.Controllers
                 });
             }
 
+            [HttpDelete("{id}")]
+public async Task<IActionResult> DeleteChitGroup(Guid id)
+{
+    using var transaction = await _context.Database.BeginTransactionAsync();
+
+    try
+    {
+        var chitGroup = await _context.ChitGroups
+            .FirstOrDefaultAsync(x => x.Id == id);
+
+        if (chitGroup == null)
+            return NotFound("Chit group not found");
+
+        // Check if auctions exist
+        var auctionsExist = await _context.Auctions
+            .AnyAsync(a => a.ChitGroupId == id);
+
+        if (auctionsExist)
+            return BadRequest("Cannot delete chit group. Auctions already exist.");
+
+        // Remove members from chit
+        var chitMembers = await _context.ChitMembers
+            .Where(cm => cm.ChitGroupId == id)
+            .ToListAsync();
+
+        if (chitMembers.Any())
+            _context.ChitMembers.RemoveRange(chitMembers);
+
+        var payments = await _context.Payments
+    .Where(p => p.ChitGroupId == id)
+    .ToListAsync();
+
+var auctions = await _context.Auctions
+    .Where(a => a.ChitGroupId == id)
+    .ToListAsync();
+
+_context.Payments.RemoveRange(payments);
+_context.Auctions.RemoveRange(auctions);
+_context.ChitMembers.RemoveRange(chitMembers);
+_context.ChitGroups.Remove(chitGroup);
+        // Delete chit group
+        _context.ChitGroups.Remove(chitGroup);
+
+        await _context.SaveChangesAsync();
+        await transaction.CommitAsync();
+
+        return Ok(new
+        {
+            message = "Chit group deleted successfully"
+        });
+    }
+    catch (Exception ex)
+    {
+        await transaction.RollbackAsync();
+
+        return StatusCode(500, new
+        {
+            message = "Error deleting chit group",
+            error = ex.InnerException?.Message ?? ex.Message
+        });
+    }
+}
+
             [HttpDelete("{chitGroupId}/members/{memberId}")]
             public async Task<IActionResult> RemoveMemberFromChit(Guid chitGroupId, Guid memberId)
             {

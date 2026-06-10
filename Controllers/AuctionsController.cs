@@ -245,6 +245,79 @@ namespace AuctionController.Controllers
             return Ok(result);
         }
 
+        [HttpDelete("auction/{auctionId}")]
+public async Task<IActionResult> DeleteAuction(Guid auctionId)
+{
+    using var transaction = await _context.Database.BeginTransactionAsync();
+
+    try
+    {
+        var auction = await _context.Auctions
+            .FirstOrDefaultAsync(a => a.Id == auctionId);
+
+        var futureAuctionsExist = await _context.Auctions
+    .AnyAsync(a =>
+        a.ChitGroupId == auction.ChitGroupId &&
+        a.MonthNumber > auction.MonthNumber);
+
+if (futureAuctionsExist)
+    return BadRequest(
+        "Delete later auctions first."
+    );
+
+        if (auction == null)
+            return NotFound("Auction not found");
+
+        // Check payments
+        var payments = await _context.Payments
+            .Where(p =>
+                p.ChitGroupId == auction.ChitGroupId &&
+                p.MonthNumber == auction.MonthNumber)
+            .ToListAsync();
+
+        if (payments.Any(p => p.AmountPaid > 0))
+            return BadRequest("Cannot delete. Payments already started.");
+
+        // Delete payments
+        if (payments.Any())
+            _context.Payments.RemoveRange(payments);
+
+        // Reset winner
+        var winner = await _context.ChitMembers
+            .FirstOrDefaultAsync(x =>
+                x.MemberId == auction.WinnerMemberId &&
+                x.ChitGroupId == auction.ChitGroupId);
+
+        if (winner != null)
+        {
+            winner.HasWon = false;
+            winner.WinningAmount = null;
+            winner.WinningMonth = null;
+        }
+
+        // Delete auction
+        _context.Auctions.Remove(auction);
+
+        await _context.SaveChangesAsync();
+        await transaction.CommitAsync();
+
+        return Ok(new
+        {
+            message = "Auction deleted successfully"
+        });
+    }
+    catch (Exception ex)
+    {
+        await transaction.RollbackAsync();
+
+        return StatusCode(500, new
+        {
+            message = "Error deleting auction",
+            error = ex.InnerException?.Message ?? ex.Message
+        });
+    }
+}
+
         [HttpPut("auction/full-update/{auctionId}")]
 public async Task<IActionResult> FullUpdateAuction(Guid auctionId, Guid winnerMemberId, decimal bidAmount)
 {
