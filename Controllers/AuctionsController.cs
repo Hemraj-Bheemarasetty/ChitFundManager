@@ -245,6 +245,75 @@ namespace AuctionController.Controllers
             return Ok(result);
         }
 
+[HttpDelete("{id}/hard-delete")]
+public async Task<IActionResult> HardDeleteChitGroup(Guid id)
+{
+    using var transaction = await _context.Database.BeginTransactionAsync();
+
+    try
+    {
+        var chitGroup = await _context.ChitGroups
+            .FirstOrDefaultAsync(x => x.Id == id);
+
+        if (chitGroup == null)
+            return NotFound("Chit group not found");
+
+        // Delete payments
+        var payments = await _context.Payments
+            .Where(p => p.ChitGroupId == id)
+            .ToListAsync();
+
+        if (payments.Any())
+            _context.Payments.RemoveRange(payments);
+
+        // Reset winners
+        var chitMembers = await _context.ChitMembers
+            .Where(cm => cm.ChitGroupId == id)
+            .ToListAsync();
+
+        foreach (var member in chitMembers)
+        {
+            member.HasWon = false;
+            member.WinningAmount = null;
+            member.WinningMonth = null;
+        }
+
+        // Delete auctions
+        var auctions = await _context.Auctions
+            .Where(a => a.ChitGroupId == id)
+            .ToListAsync();
+
+        if (auctions.Any())
+            _context.Auctions.RemoveRange(auctions);
+
+        // Delete chit members
+        if (chitMembers.Any())
+            _context.ChitMembers.RemoveRange(chitMembers);
+
+        // Delete chit group
+        _context.ChitGroups.Remove(chitGroup);
+
+        await _context.SaveChangesAsync();
+        await transaction.CommitAsync();
+
+        return Ok(new
+        {
+            message = "Chit group and all related data deleted successfully"
+        });
+    }
+    catch (Exception ex)
+    {
+        await transaction.RollbackAsync();
+
+        return StatusCode(500, new
+        {
+            message = "Error deleting chit group",
+            error = ex.InnerException?.Message ?? ex.Message
+        });
+    }
+}
+
+
         [HttpDelete("auction/{auctionId}")]
 public async Task<IActionResult> DeleteAuction(Guid auctionId)
 {
